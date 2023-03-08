@@ -10,7 +10,6 @@ import pickle
 import pandas as pd
 import os
 import sys
-from data_loader.utils.vocab import Vocab
 from tqdm import tqdm
 def convert_to_med2vec(patient_data):
     data = []
@@ -38,7 +37,6 @@ if __name__ == '__main__':
 
     patient_data = {}
     patient_id = set(df['SUBJECT_ID'])
-    vocab = Vocab()
     for pid in tqdm(patient_id):
         pid_df = df[df['SUBJECT_ID'] == pid]
         if (len(pid_df) < 2):
@@ -50,7 +48,6 @@ if __name__ == '__main__':
             admitime = r['ADMITTIME']
             icd9_raw = df_diagnosis[df_diagnosis['HADM_ID'] == admid]['ICD9_CODE'].values
             icd9_raw = list(map(str, icd9_raw))
-            icd9 = vocab.convert_to_ids(icd9_raw)
             mortality = r['DEATHTIME'] == r['DEATHTIME'] # check not nan
             admtime = datetime.strptime(r['ADMITTIME'], '%Y-%m-%d %H:%M:%S') # TODO: convert date time to integers.. ?!?
             tup = (icd9, admtime, mortality)

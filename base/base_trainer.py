@@ -4,8 +4,8 @@ import json
 import logging
 import datetime
 import torch
-from utils.util import ensure_dir
-from utils.visualization import WriterTensorboardX
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 class BaseTrainer:
@@ -18,6 +18,7 @@ class BaseTrainer:
 
         # setup GPU device if available, move model into configured device
         self.device, device_ids = self._prepare_device(config['n_gpu'])
+        print("device is:",self.device)
         self.model = model.to(self.device)
         if len(device_ids) > 1:
             self.model = torch.nn.DataParallel(model, device_ids=device_ids)
@@ -28,10 +29,14 @@ class BaseTrainer:
         self.train_logger = train_logger
 
         cfg_trainer = config['trainer']
+        # TODO: fix epochs why was it always 10?
         self.epochs = cfg_trainer['epochs']
+        
+        print("number of epochs:",self.epochs )
         self.save_period = cfg_trainer['save_period']
         self.verbosity = cfg_trainer['verbosity']
         self.monitor = cfg_trainer.get('monitor', 'off')
+        self.dir = cfg_trainer['save_dir']
 
         # configuration to monitor model performance and save best
         if self.monitor == 'off':
@@ -49,24 +54,25 @@ class BaseTrainer:
         # setup directory for checkpoint saving
         start_time = datetime.datetime.now().strftime('%m%d_%H%M%S')
         self.checkpoint_dir = os.path.join(cfg_trainer['save_dir'], config['name'], start_time)
-        # setup visualization writer instance
-        writer_dir = os.path.join(cfg_trainer['log_dir'], config['name'], start_time)
-        self.writer = WriterTensorboardX(writer_dir, self.logger, cfg_trainer['tensorboardX'])
+
+        # creating a directory for the reslts if one does not exist
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
 
         # Save configuration file into checkpoint directory:
-        ensure_dir(self.checkpoint_dir)
         config_save_path = os.path.join(self.checkpoint_dir, 'config.json')
+        # creating a directory for the reslts
         with open(config_save_path, 'w') as handle:
             json.dump(config, handle, indent=4, sort_keys=False)
 
         if resume:
             self._resume_checkpoint(resume)
-    
+
     def _prepare_device(self, n_gpu_use):
         """ 
         setup GPU device if available, move model into configured device
         """ 
         n_gpu = torch.cuda.device_count()
+        print("n_gpu is:",n_gpu)
         if n_gpu_use > 0 and n_gpu == 0:
             self.logger.warning("Warning: There\'s no GPU available on this machine, training will be performed on CPU.")
             n_gpu_use = 0
@@ -76,13 +82,26 @@ class BaseTrainer:
         device = torch.device('cuda:0' if n_gpu_use > 0 else 'cpu')
         list_ids = list(range(n_gpu_use))
         return device, list_ids
+        
 
     def train(self):
         """
         Full training logic
         """
+        improved= False
+        not_improved_count =0
+        train_loss_by_epoch = []
+        val_loss_by_epoch = []
+
         for epoch in range(self.start_epoch, self.epochs + 1):
-            result = self._train_epoch(epoch)
+            print("epoch:",epoch)
+
+            epoch_dict_train = self._train_epoch(epoch)
+            result = epoch_dict_train['log']
+            epoch_lost = epoch_dict_train['train_loss'].detach()
+            train_loss_by_epoch.append(epoch_lost)
+            epoch_val_lost = epoch_dict_train['val_loss'].detach()
+            val_loss_by_epoch.append(epoch_val_lost)
             
             # save logged informations into log dict
             log = {'epoch': epoch}
@@ -122,12 +141,30 @@ class BaseTrainer:
                     not_improved_count += 1
 
                 if not_improved_count > self.early_stop:
-                    self.logger.info("Validation performance didn\'t improve for {} epochs. Training stops.".format(self.early_stop))
+                    print("Validation performance didn't improve for {} epochs. Training stops.".format(self.early_stop))
+                    self.logger.info("Validation performance didn't improve for {} epochs. Training stops.".format(self.early_stop))
                     break
 
             if epoch % self.save_period == 0:
                 self._save_checkpoint(epoch, save_best=best)
-            
+
+        # Plotting the training and validation loss
+        train_loss_by_epoch_cpu = []
+        val_loss_by_epoch_cpu = []
+        for i in range (len(train_loss_by_epoch)):
+            train_loss_by_epoch_cpu.append(train_loss_by_epoch[i].cpu())
+            val_loss_by_epoch_cpu.append(val_loss_by_epoch[i].cpu())
+
+        epochs = np.linspace(1, len(train_loss_by_epoch_cpu), len(train_loss_by_epoch_cpu))
+        plt.scatter(epochs,train_loss_by_epoch_cpu, label='Training Loss')
+        plt.scatter(epochs,val_loss_by_epoch_cpu, label='Validation Loss')
+        plt.title('Training and Validation Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.savefig("loss_vs_epochs.png", dpi=300, bbox_inches='tight', format='png', transparent=True, pad_inches=0.1)
+        plt.show()
+
 
     def _train_epoch(self, epoch):
         """

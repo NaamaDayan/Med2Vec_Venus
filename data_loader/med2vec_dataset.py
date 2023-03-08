@@ -21,7 +21,11 @@ class Med2VecDataset(data.Dataset):
             raise ValueError('cannot download')
 
         self.train_data = pickle.load(open(root, 'rb'))
+        print("length of data is:",len(self.train_data))
+
+        # print("total amount of batches:",len(self.train_data)/20)
         self.test_data = []
+        # print("train data from pickle is:",self.train_data[:20])
 
     def __len__(self):
         if self.train:
@@ -34,24 +38,26 @@ class Med2VecDataset(data.Dataset):
         return x, ivec, jvec, d
 
     def preprocess(self, seq):
+        # creating the new sentences where ivec will be the target words and the jvec will be all the contex words around the target word'
+        # in ivec each word will be duplicated b the amount of words in its relevant context word
+
         """ create one hot vector of idx in seq, with length self.num_codes
 
             Args:
-                seq: list of ideces where code should be 1
+                seq: list of indices where code should be 1
 
             Returns:
-                x: one hot vector
+                x: one hot vector for each word in the batch
                 ivec: vector for learning code representation
                 jvec: vector for learning code representation
         """
         x = torch.zeros((self.num_codes, ), dtype=torch.long)
-
         ivec = []
         jvec = []
         d = []
         if seq == [-1]:
-            return x, torch.LongTensor(ivec), torch.LongTensor(jvec), d
-
+            return x, torch.FloatTensor(ivec), torch.FloatTensor(jvec), torch.FloatTensor(d)
+        # print("x of seq:",seq)
         x[seq] = 1
         for i in seq:
             for j in seq:
@@ -59,10 +65,12 @@ class Med2VecDataset(data.Dataset):
                     continue
                 ivec.append(i)
                 jvec.append(j)
-        return x, torch.LongTensor(ivec), torch.LongTensor(jvec), d
+        # print("ivce is:",ivec,"jvec is:",jvec)
+        return x, torch.FloatTensor(ivec), torch.FloatTensor(jvec), torch.FloatTensor(d)
 
 def collate_fn(data):
     """ Creates mini-batch from x, ivec, jvec tensors
+    removes all the false words in the sentence - all the words that are used as a symbole of end of person [-1]
 
     We should build custom collate_fn, as the ivec, and jvec have varying lengths. These should be appended
     in row form
@@ -86,8 +94,12 @@ def collate_fn(data):
 
     return x, ivec, jvec, mask, d
 
-def get_loader(root, num_codes, train=True, transform=None, target_transform=None, download=False, batch_size=1000):
+def get_loader(root, num_codes, train=True, transform=None, target_transform=None, download=False, batch_size=20):
     """ returns torch.utils.data.DataLoader for Med2Vec dataset """
+    shuffle = True # define shuffle variable
+    num_workers = 1 # define num_workers variable
     med2vec = Med2VecDataset(root, num_codes, train, transform, target_transform, download)
+    # print("med2vec data is :",med2vec)
+
     data_loader = torch.utils.data.DataLoader(dataset=med2vec, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=collate_fn)
     return data_loader
