@@ -1,4 +1,4 @@
-from torchvision import datasets
+# from torchvision import datasets
 from .med2vec_dataset import Med2VecDataset,get_loader
 from .med2vec_dataset import collate_fn as med2vec_collate
 

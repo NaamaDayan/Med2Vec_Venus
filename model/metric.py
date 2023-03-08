@@ -6,7 +6,7 @@ def recall_k(output, target, mask,k=3, window=3):
     # print("mask in start is:",mask)
     # print("output in start is:",output)
     # TODO: make in config with metric
-    k = 10
+    k = 3
 
     acc_r = 0.0
     count = 0

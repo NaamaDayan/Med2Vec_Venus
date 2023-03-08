@@ -7,7 +7,6 @@ import numpy as np
 import torch
 # from torchvision.utils import make_grid
 from base import BaseTrainer
-import datetime
 # import torch.multiprocessing as mp
 
 # from torch.utils.tensorboard import SummaryWriter
@@ -59,8 +58,7 @@ class Med2VecTrainer(BaseTrainer):
         torch.set_grad_enabled(True)
         total_loss = 0
         total_metrics = np.zeros(len(self.metrics))
-        start_time = datetime.datetime.now()
-        print("start time is:",start_time)
+
 
 
 
@@ -68,7 +66,6 @@ class Med2VecTrainer(BaseTrainer):
             # print("batches data is:",x,"ivec is :",ivec,"jvec is:",jvec)
             if(len(x)<self.data_loader.batch_size):
                 continue
-            end_time = datetime.datetime.now().strftime('%m%d_%H%M%S')
             # print("batch idx is:",batch_idx)
             data, ivec, jvec, mask, d  = x.to(self.device), ivec.to(self.device), jvec.to(self.device), mask.to(self.device), d.to(self.device)
             self.optimizer.zero_grad()
@@ -110,7 +107,7 @@ class Med2VecTrainer(BaseTrainer):
                 # self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
 
 
-            total_loss += loss_dict['visit_loss'].detach() + loss_dict['code_loss'].detach()
+            total_loss += loss_dict['visit_loss'] + loss_dict['code_loss']
             # total_loss += loss_dict['code_loss'].detach()
 
             # print("total loss is:",total_loss)
@@ -119,10 +116,6 @@ class Med2VecTrainer(BaseTrainer):
 
             # print("batch loss is:", loss)
 
-            end_time = datetime.datetime.now()
-            delta  =end_time-start_time
-            print("batch idx and time:",batch_idx,"time for batch:",delta.total_seconds())
-            start_time = end_time
 
 
 
@@ -177,7 +170,7 @@ class Med2VecTrainer(BaseTrainer):
 
                 # self.writer.set_step((epoch - 1) * len(self.valid_data_loader) + batch_idx, 'valid')
                 # self.writer.add_scalar('loss', loss.item())
-                total_val_loss += loss_dict['visit_loss'].detach() + loss_dict['code_loss'].detach()
+                total_val_loss += loss_dict['visit_loss'] + loss_dict['code_loss']
                 # total_val_loss += loss_dict['code_loss'].detach()
                 total_val_metrics += self._eval_metrics(probits.detach(), data.detach(), mask=mask, k=self.config['metrics'])
                 # self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))

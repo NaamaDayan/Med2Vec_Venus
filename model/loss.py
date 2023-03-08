@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
 def med2vec_loss(inputs, mask, probits, bce_loss, emb_w, ivec, jvec, window, eps=1.0e-8):
     """ returns the med2vec loss
@@ -96,8 +97,7 @@ def med2vec_loss(inputs, mask, probits, bce_loss, emb_w, ivec, jvec, window, eps
                 forward_loss = bce_loss(forward_preds, x_i_forward.float())
                 # print("were here at forward at i = ",i)
 
-            current_loss = torch.tensor(forward_loss, requires_grad=True, dtype=torch.float) \
-                           + torch.tensor(backward_loss, requires_grad=True, dtype=torch.float)
+            current_loss = torch.tensor(forward_loss + backward_loss, requires_grad=True, dtype=torch.float)
 
             loss += current_loss
         return loss
@@ -117,6 +117,15 @@ def med2vec_loss(inputs, mask, probits, bce_loss, emb_w, ivec, jvec, window, eps
         cost = torch.mean(cost)
         # print("cost is:",cost)
         return cost
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    # Move all tensors to the device
+    mask = mask.to(device)
+    probits = probits.to(device)
+    emb_w = emb_w.to(device)
+    ivec = ivec.to(device)
+    jvec = jvec.to(device)
 
     vl = visit_loss(inputs, mask, probits, window = window)
     cl = code_loss(emb_w, ivec, jvec, eps=1.e-6)

@@ -1,6 +1,6 @@
 {
     "name": "med2vec recall30",
-    "n_gpu": 0,
+    "n_gpu": 1,
 
 "model": {
     "type": "Med2Vec",
@@ -14,12 +14,12 @@
   ,  "data_loader": {
         "type": "Med2VecDataLoader",
         "args": {
-            "data_dir": "./data/generated",
-            "batch_size": 5,
+            "data_dir": "./data/",
+            "batch_size": 8,
             "num_codes": 5380,
             "shuffle": true,
             "validation_split": 0.2,
-            "num_workers": 1
+            "num_workers": 4
         }
     },
     "optimizer": {
@@ -43,9 +43,9 @@
       "trainer": {
         "type": "Med2VecTrainer",
         "module_name": "med2vec_trainer",
-        "epochs": 3,
+        "epochs": 2,
         "save_dir": "saved/",
-        "save_period": 10,
+        "save_period": 5,
         "verbosity": 2000,
 
         "monitor": "min val_loss",

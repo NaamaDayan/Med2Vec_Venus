@@ -18,6 +18,12 @@ class BaseTrainer:
 
         # setup GPU device if available, move model into configured device
         self.device, device_ids = self._prepare_device(config['n_gpu'])
+        print("version is:",torch.__version__)
+        if torch.cuda.is_available():
+            print("GPU is available")
+        else:
+            print("GPU is not available")
+
         print("device is:",self.device)
         self.model = model.to(self.device)
         if len(device_ids) > 1:
@@ -94,9 +100,11 @@ class BaseTrainer:
         val_loss_by_epoch = []
 
         for epoch in range(self.start_epoch, self.epochs + 1):
-            print("epoch:",epoch)
-
+            start_time = datetime.datetime.now()
             epoch_dict_train = self._train_epoch(epoch)
+            end_time = datetime.datetime.now()
+            delta = end_time - start_time
+            print("epoch:", epoch, "time for epoch:", delta.total_seconds())
             result = epoch_dict_train['log']
             epoch_lost = epoch_dict_train['train_loss'].detach()
             train_loss_by_epoch.append(epoch_lost)
