@@ -18,13 +18,13 @@ class BaseTrainer:
 
         # setup GPU device if available, move model into configured device
         self.device, device_ids = self._prepare_device(config['n_gpu'])
-        print("version is:",torch.__version__)
-        if torch.cuda.is_available():
-            print("GPU is available")
-        else:
-            print("GPU is not available")
-
-        print("device is:",self.device)
+        # print("version is:",torch.__version__)
+        # if torch.cuda.is_available():
+        #     print("GPU is available")
+        # else:
+        #     print("GPU is not available")
+        #
+        # print("device is:",self.device)
         self.model = model.to(self.device)
         if len(device_ids) > 1:
             self.model = torch.nn.DataParallel(model, device_ids=device_ids)
@@ -35,10 +35,9 @@ class BaseTrainer:
         self.train_logger = train_logger
 
         cfg_trainer = config['trainer']
-        # TODO: fix epochs why was it always 10?
         self.epochs = cfg_trainer['epochs']
         
-        print("number of epochs:",self.epochs )
+        # print("number of epochs:",self.epochs)
         self.save_period = cfg_trainer['save_period']
         self.verbosity = cfg_trainer['verbosity']
         self.monitor = cfg_trainer.get('monitor', 'off')
@@ -78,13 +77,14 @@ class BaseTrainer:
         setup GPU device if available, move model into configured device
         """ 
         n_gpu = torch.cuda.device_count()
-        print("n_gpu is:",n_gpu)
+        # print("n_gpu is:",n_gpu)
         if n_gpu_use > 0 and n_gpu == 0:
             self.logger.warning("Warning: There\'s no GPU available on this machine, training will be performed on CPU.")
             n_gpu_use = 0
         if n_gpu_use > n_gpu:
             self.logger.warning("Warning: The number of GPU\'s configured to use is {}, but only {} are available on this machine.".format(n_gpu_use, n_gpu))
             n_gpu_use = n_gpu
+        # TODO: automatic way to detect cuda , check if here is where it is used
         device = torch.device('cuda:0' if n_gpu_use > 0 else 'cpu')
         list_ids = list(range(n_gpu_use))
         return device, list_ids
@@ -98,18 +98,26 @@ class BaseTrainer:
         not_improved_count =0
         train_loss_by_epoch = []
         val_loss_by_epoch = []
+        metric_score_by_epoch = []
 
         for epoch in range(self.start_epoch, self.epochs + 1):
             start_time = datetime.datetime.now()
+            # shuffling the batches
+            self._shuffle_data()
             epoch_dict_train = self._train_epoch(epoch)
+
             end_time = datetime.datetime.now()
             delta = end_time - start_time
             print("epoch:", epoch, "time for epoch:", delta.total_seconds())
             result = epoch_dict_train['log']
-            epoch_lost = epoch_dict_train['train_loss'].detach()
-            train_loss_by_epoch.append(epoch_lost)
-            epoch_val_lost = epoch_dict_train['val_loss'].detach()
+            epoch_train_lost = epoch_dict_train['train_loss']
+            train_loss_by_epoch.append(epoch_train_lost)
+            epoch_val_lost = epoch_dict_train['val_loss']
             val_loss_by_epoch.append(epoch_val_lost)
+            epoch_metric_score = epoch_dict_train['metrics_r']
+            metric_score_by_epoch.append(epoch_metric_score)
+            # print("train loss:", epoch_train_lost, "val loss:", epoch_val_lost)
+            # print("epoch lost is:", epoch_val_lost+epoch_train_lost)
             
             # save logged informations into log dict
             log = {'epoch': epoch}
@@ -122,6 +130,7 @@ class BaseTrainer:
                     log[key] = value
 
             # print logged informations to the screen
+            #TODO: fix the logger or remove it
             if self.train_logger is not None:
                 self.train_logger.add_entry(log)
                 if self.verbosity >= 1:
@@ -153,26 +162,31 @@ class BaseTrainer:
                     self.logger.info("Validation performance didn't improve for {} epochs. Training stops.".format(self.early_stop))
                     break
 
-            if epoch % self.save_period == 0:
-                self._save_checkpoint(epoch, save_best=best)
+            # if epoch % self.save_period == 0:
+            #     self._save_checkpoint(epoch, save_best=best)
 
         # Plotting the training and validation loss
-        train_loss_by_epoch_cpu = []
-        val_loss_by_epoch_cpu = []
-        for i in range (len(train_loss_by_epoch)):
-            train_loss_by_epoch_cpu.append(train_loss_by_epoch[i].cpu())
-            val_loss_by_epoch_cpu.append(val_loss_by_epoch[i].cpu())
+        epochs = np.linspace(1, len(train_loss_by_epoch), len(train_loss_by_epoch))
+        plt.scatter(epochs, train_loss_by_epoch, label='Training Loss')
+        plt.scatter(epochs, val_loss_by_epoch, label='Validation Loss')
 
-        epochs = np.linspace(1, len(train_loss_by_epoch_cpu), len(train_loss_by_epoch_cpu))
-        plt.scatter(epochs,train_loss_by_epoch_cpu, label='Training Loss')
-        plt.scatter(epochs,val_loss_by_epoch_cpu, label='Validation Loss')
         plt.title('Training and Validation Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.legend()
         plt.savefig("loss_vs_epochs.png", dpi=300, bbox_inches='tight', format='png', transparent=True, pad_inches=0.1)
-        plt.show()
+        plt.close()
 
+
+
+        plt.scatter(epochs, metric_score_by_epoch, label='Metric Score')
+        plt.title('Metric Score By Epoch')
+        plt.xlabel('Epoch')
+        plt.ylabel('Metric Score')
+        plt.legend()
+        plt.savefig("Metric_vs_epochs.png", dpi=300, bbox_inches='tight', format='png', transparent=True, pad_inches=0.1)
+        # plt.show()
+        plt.close()
 
     def _train_epoch(self, epoch):
         """

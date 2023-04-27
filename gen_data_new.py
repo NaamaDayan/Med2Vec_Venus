@@ -20,7 +20,7 @@ def generate_sentences(num_sen,max_sen_length,min_sen_length,vocab_size,min_gap_
 
 
 if __name__ == '__main__':
-    sentences =  generate_sentences(num_sen=50,max_sen_length = 5,min_sen_length = 2,vocab_size = 10,min_gap_length = 2,max_gap_length=8)
+    sentences =  generate_sentences(num_sen=64,max_sen_length = 5,min_sen_length = 2,vocab_size = 10,min_gap_length = 1,max_gap_length=4)
     filename = './data/generated/med2vec.seqs'
     with open(filename, 'wb') as f:
         pickle.dump(sentences, f)

@@ -1,99 +1,87 @@
 import torch
-# torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
-def recall_k(output, target, mask,k=3, window=3):
-    # print("target in start is:",target)
-    # print("mask in start is:",mask)
-    # print("output in start is:",output)
-    # TODO: make in config with metric
-    k = 3
+def create_mask(original_mask, batch_size, window_size):
+    pos_matrix = torch.arange(batch_size).reshape((batch_size, 1))
+    pos_matrix_bool = pos_matrix < pos_matrix.T
+    mask_per_word = torch.abs(pos_matrix - pos_matrix.T) <= window_size
+    mask_per_word = torch.logical_and(mask_per_word,pos_matrix_bool)
+    mask_per_word = (mask_per_word * original_mask.unsqueeze(1) * original_mask.unsqueeze(0))
+    mask_per_word.fill_diagonal_(0)
+    return mask_per_word
+
+
+def split_and_modify_mask(mask):
+    """
+    Split the mask tensor into two tensors and modify their values as required.
+
+    Args:
+        mask (torch.Tensor): Binary tensor of shape [batch_size, batch_size].
+
+    Returns:
+        torch.Tensor: Binary tensor of shape [batch_size, batch_size].
+    """
+
+    left_tensor = (torch.triu(torch.ones(mask.shape), diagonal=0) + mask).bool().int()
+    right_tensor = (torch.tril(torch.ones(mask.shape), diagonal=0) + mask).bool().int()
+    mask_left = torch.flip(torch.cumsum(torch.flip(left_tensor == 0, dims=[1]), dim=1) > 0, dims=[1]).int()
+
+    # Apply the mask to the input tensor
+    masked_left_tensor = left_tensor * (1 - mask_left)
+
+    mask_right = (torch.cumsum(right_tensor == 0, dim=1) > 0).int()
+    # Apply the mask to the input tensor
+    masked_right_tensor = right_tensor * (1 - mask_right)
+
+    # Combine the modified left and right tensors with element-wise addition
+    modified_mask = torch.logical_and(masked_left_tensor, masked_right_tensor).fill_diagonal_(0).int()
+
+    return modified_mask
+
+# not really recall because we take the top k values of probits and just all values above zero that with target , instead im gonna go with
+def recall_k(probits, target, mask,k=5, window=2):
 
     acc_r = 0.0
+    acc_rt = 0.0
+
     count = 0
-    for i in range(len(mask)):
-        # check if current index is masked (end of sentence)
-        if mask[i] == 0:
-            continue
+    count_rt=0
+    mask_per_word = create_mask(mask, len(target), window)
+    mask_after_diagonal = split_and_modify_mask(mask_per_word).float()
+    # print("mask after diagonal:",mask_after_diagonal)
+    # print("shape of mask and x",mask_after_diagonal.shape,x.shape)
+    # print("shapes of probits and target before masking:", probits.shape, target.shape)
+    # print("target before masking:", target)
+    # print("probits before masking:", probits)
+    target_masked = torch.matmul(mask_after_diagonal, target.float())
+    probits_masked = torch.matmul(mask_after_diagonal, probits.float())
+    # print("target masked:", target_masked)
+    # print("probits masked:", probits_masked)
+    target_masked = target_masked[torch.any(target_masked != 0, dim=1)].bool().float()
+    probits_masked = probits_masked[torch.any(probits_masked != 0, dim=1)]
+    # print("shapes of probits and target after masking:", probits_masked.shape, target_masked.shape)
 
-        # create maski with zeros at the current index and zeros for masked indices
-        maski = torch.zeros(len(mask))
-        word_ahead = False
-        word_before = False
-        for j in range(1, window + 1):
-            if i + j < len(mask):
-                if word_ahead != True:
-                    if mask[i + j] == 0:
-                        word_ahead = True
-                    else:
-                        maski[i + j] = 1
+    k = 5
+    _, tk = torch.topk(probits_masked, k)
+    # print("tk is:",tk)
+    # print("target masked is:",target_masked)
+    tt = torch.gather(target_masked, 1, tk)
+    # print("tt is:", tt)
+    r = torch.mean(torch.sum(tt, dim=1))/k
+    r_t = torch.mean(torch.sum(tt, dim=1))/torch.mean(torch.sum(target_masked, dim=1))
 
-            if i - j >= 0:
-                if word_before != True:
-                    if mask[i - j] == 0:
-                        word_before = True
-                    else:
-                        maski[i - j] = 1
+    # print("r is:", r)
+    if r != r:
+        r = 0
+    else:
+        acc_r += r.item()
+        count += 1
+    if r_t != r_t:
+        r_t = 0
+    else:
+        acc_rt += r_t.item()
+        count_rt += 1
+    return acc_r / count if count > 0 else 0 , acc_rt / count_rt if count_rt > 0 else 0
 
-        maski[i] = 0
-
-        # calculate the loss for the current index
-        target_i = target * maski.view(len(target), 1)
-        output_masked = output * maski.view(len(target), 1)
-
-        forward_output = output_masked[i + 1:]
-
-        forward_output = forward_output[torch.any(forward_output != 0, dim=1)]
-
-        if (forward_output.numel() > 0):
-            target_i_forward = target_i[i + 1:]
-
-            target_i_forward = target_i_forward[torch.any(target_i_forward != 0, dim=1)]
-            _, tk = torch.topk(forward_output, k)
-            # print("tk is:",tk)
-            tt = torch.gather(target_i_forward, 1, tk)
-            r = torch.mean(torch.sum(tt, dim=1) / torch.sum(target_i_forward, dim=1))
-            # print("target is:",target_i_forward)
-            # print("tt is:",tt)
-
-            if r != r:
-                r = 0
-            else:
-                acc_r += r.item()
-                count += 1
-    return acc_r / count if count > 0 else 0
-#     bsz = output.shape[0]
-#     idx = torch.arange(0, bsz, device=output.device)
-#
-#     mask = mask.squeeze()
-#     print("mask is:",mask)
-#     for i in range(window):
-#         mi = mask[i + 1:] * mask[i + 1:i + 1 + min(window, len(mask) - i - 1)]
-#         print("mi first is:",mi)
-#         mi = torch.nn.functional.pad(mi, (1 + i, 1 + i))
-#         tm = mi[:-i - 1]
-#         im = mi[i + 1:]
-#         print("mi is:",mi)
-#
-#         target_mask = torch.masked_select(idx, tm)
-#         input_mask = torch.masked_select(idx, im)
-#         #ii = ii.long()
-#         output = output[input_mask, :]
-#         output = output.float()
-#         print("tagert is:",target)
-#         print("target mask is:",target_mask)
-#         target = target[target_mask, :]
-#         target = target.float()
-#         # print("target of metric is:",target)
-#         # print("output of metric is:",output)
-#
-#         _, tk = torch.topk(output,7)
-#         # print(" taget is:",target)
-#         # print("top k for batch:",tk)
-#         tt = torch.gather(target, 1, tk)
-#         r = torch.mean(torch.sum(tt, dim=1) / torch.sum(target, dim=1))
-#         if r != r:
-#             r = 0
-#     return r
 
 
 

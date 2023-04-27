@@ -14,6 +14,7 @@ class Med2VecDataLoader(BaseDataLoader):
        self.data_dir = data_dir
        self.num_codes = num_codes
        path_file = os.path.expanduser(data_dir)
+       self.shuffle = shuffle
 
 
        if file_name != None:
@@ -22,7 +23,9 @@ class Med2VecDataLoader(BaseDataLoader):
            path_file = os.path.join(path_file, 'med2vec.seqs')
        self.data_dir = path_file
        self.train = training
-       self.data_loader = get_loader(path_file, num_codes, train=True, transform=None, target_transform=None, download=False, batch_size=20)
+       self.data_loader = get_loader(path_file, num_codes, train=True, transform=None, target_transform=None, download=False, batch_size=8)
        self.dataset = self.data_loader.dataset
+       # print("data set in the data_loaders:", self.dataset.__getitem__(0))
+
        super(Med2VecDataLoader, self).__init__(self.dataset, batch_size, shuffle, validation_split, num_workers, collate_fn=med2vec_collate)
 

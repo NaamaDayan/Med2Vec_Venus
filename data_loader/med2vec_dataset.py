@@ -21,11 +21,8 @@ class Med2VecDataset(data.Dataset):
             raise ValueError('cannot download')
 
         self.train_data = pickle.load(open(root, 'rb'))
-        print("length of data is:",len(self.train_data))
-
-        # print("total amount of batches:",len(self.train_data)/20)
         self.test_data = []
-        # print("train data from pickle is:",self.train_data[:20])
+        print("train and validation data from pickle is:",self.train_data[:50])
 
     def __len__(self):
         if self.train:
@@ -55,9 +52,10 @@ class Med2VecDataset(data.Dataset):
         ivec = []
         jvec = []
         d = []
+        # when visit is [-1] it means its end of patient
         if seq == [-1]:
             return x, torch.FloatTensor(ivec), torch.FloatTensor(jvec), torch.FloatTensor(d)
-        # print("x of seq:",seq)
+
         x[seq] = 1
         for i in seq:
             for j in seq:
@@ -65,7 +63,6 @@ class Med2VecDataset(data.Dataset):
                     continue
                 ivec.append(i)
                 jvec.append(j)
-        # print("ivce is:",ivec,"jvec is:",jvec)
         return x, torch.FloatTensor(ivec), torch.FloatTensor(jvec), torch.FloatTensor(d)
 
 def collate_fn(data):
@@ -86,20 +83,17 @@ def collate_fn(data):
 
     x, ivec, jvec, d = zip(*data)
     x = torch.stack(x, dim=0)
+    d = torch.stack(d, dim=0)
     mask = torch.sum(x, dim=1) > 0
     mask = mask[:, None]
     ivec = torch.cat(ivec, dim=0)
     jvec = torch.cat(jvec, dim=0)
-    d = torch.stack(d, dim=0)
-
     return x, ivec, jvec, mask, d
 
-def get_loader(root, num_codes, train=True, transform=None, target_transform=None, download=False, batch_size=20):
+def get_loader(root, num_codes, train=True, transform=None, target_transform=None, download=False, batch_size=8):
     """ returns torch.utils.data.DataLoader for Med2Vec dataset """
-    shuffle = True # define shuffle variable
-    num_workers = 1 # define num_workers variable
+    shuffle = False # define shuffle variable
+    num_workers = 4 # define num_workers variable
     med2vec = Med2VecDataset(root, num_codes, train, transform, target_transform, download)
-    # print("med2vec data is :",med2vec)
-
     data_loader = torch.utils.data.DataLoader(dataset=med2vec, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=collate_fn)
     return data_loader

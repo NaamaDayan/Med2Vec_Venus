@@ -5,33 +5,32 @@
 "model": {
     "type": "Med2Vec",
     "args": {
-        "icd9_size": 5380,
+        "icd9_size": 5167,
         "demographics_size": 0,
-        "embedding_size": 500,
+        "embedding_size": 500 ,
         "hidden_size": 100
     }
 }
   ,  "data_loader": {
         "type": "Med2VecDataLoader",
         "args": {
-            "data_dir": "./data/",
-            "batch_size": 8,
-            "num_codes": 5380,
+            "data_dir": "./data/data_large",
+            "batch_size": 1024,
+            "num_codes": 5167,
             "shuffle": true,
             "validation_split": 0.2,
             "num_workers": 4
         }
     },
     "optimizer": {
-        "type": "Adam",
+        "type": "SGD",
         "args": {
             "lr": 0.001,
-            "weight_decay": 0,
-            "amsgrad": true
+            "weight_decay": 0.001
         }
     },
     "loss": "med2vec_loss",
-    "loss_window": 5,
+    "loss_window": 2,
     "metrics": ["recall_k"],
     "lr_scheduler": {
         "type": "StepLR",
@@ -43,13 +42,13 @@
       "trainer": {
         "type": "Med2VecTrainer",
         "module_name": "med2vec_trainer",
-        "epochs": 2,
-        "save_dir": "saved/",
+        "epochs": 35,
+        "save_dir": "./saved/",
         "save_period": 5,
         "verbosity": 2000,
 
         "monitor": "min val_loss",
-        "early_stop": 20,
+        "early_stop": 5,
         "log_dir": "saved/runs"
     }
 }

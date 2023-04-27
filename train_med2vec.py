@@ -12,10 +12,8 @@ import model.loss as module_loss
 import model.metric as module_metric
 from model.med2vec import Med2Vec
 import torch.multiprocessing as mp
-
-# import model.med2vec as module_arch
-
 from trainer import Med2VecTrainer as Trainer
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
 def get_instance(module, name, config, *args):
@@ -28,11 +26,10 @@ def main(config, resume, device):
 
     # setup data_loader instances
     data_loader = get_instance(module_data, 'data_loader', config)
-    valid_data_loader = data_loader.split_validation()
 
     # build model architecture
     model_args = config['model']['args']
-    model = Med2Vec(**model_args)
+    # TODO: load the device with the parser and not manualy like here
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = Med2Vec(**model_args,device=device)
 
@@ -51,7 +48,6 @@ def main(config, resume, device):
                       resume=resume,
                       config=config,
                       data_loader=data_loader,
-                      valid_data_loader=valid_data_loader,
                       lr_scheduler=lr_scheduler,
                       train_logger=None)
 

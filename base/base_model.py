@@ -35,4 +35,3 @@ class BaseModel(nn.Module):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())
         params = sum([np.prod(p.size()) for p in model_parameters if p is not None])
         return super(BaseModel, self).__str__() + '\nTrainable parameters: {}'.format(params)
-        # print(super(BaseModel, self))
